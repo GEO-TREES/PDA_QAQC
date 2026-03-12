@@ -38,7 +38,7 @@ Below, is a description of all base-level functions, grouped by theme.
 
 * `flagRecordMissing()` - Flag stems with missing census records.
 
-* `flagValueMissing()` - Flag stem measurements where values are empty and must be filled, with user specification. Include cross-column dependencies, e.g. diameter missing but stem is alive.
+* `flagValMissing()` - Flag stem measurements where values are empty and must be filled, with user specification. Include cross-column dependencies, e.g. diameter missing but stem is alive.
     * Site ID
     * Plot ID
     * Tree ID
