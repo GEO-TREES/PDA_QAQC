@@ -1,16 +1,10 @@
-#' Flag duplicated measurement records within a census
+#' Flag duplicated measurement records 
 #'
-#' @param x dataframe containing measurements
-#' @param ind_id column name of unique individual IDs in `x`
-#' @param census_id column name containing census IDs in `x`
+#' @param x `r param_x_stem()`
+#' @param meas_id `r param_id("individual measurements")`
+#' @param census_id `r param_census_id()`
 #'
-#' @details
-#' Identifies cases where a `ind_id` is recorded multiple times 
-#' within the same `census_id`. It returns the indices of all rows involved in 
-#' the duplication.
-#'
-#' @return An integer vector of row indices where `ind_id` is duplicated 
-#' within the same census.
+#' @return dataframe with values of `meas_id` that are duplicated in `x`
 #' 
 #' @examples
 #' df <- data.frame(
@@ -19,23 +13,31 @@
 #'   dbh = c(10, 15, 20, 11, 14)
 #' )
 #' 
-#' # Tree 1 is measured twice in 2010
-#' flagRecordDup(df, "tree_id", "census")
-#' # [1] 1 4
+#' flagRecordDup(df, c("tree_id", "census"))
 #' 
 #' @export
-flagRecordDup <- function(x, ind_id, census_id) {
+flagRecordDup <- function(x, meas_id, census_id = NULL) {
   
-  # Check columns exist
-  if (!all(c(ind_id, census_id) %in% names(x))) {
-    stop("Columns 'ind_id' or 'census_id' not found in `x`")
+  # Check input
+  columnCatch(x, meas_id, census_id)
+
+  # Extract ID columns
+  ids <- x[, c(meas_id, census_id), drop = FALSE]
+
+  # Find duplicated values 
+  out <- unique(ids[duplicated(ids), , drop = FALSE])
+
+  # Generate comment
+  if (!is.null(comment) && nrow(out) > 0) { 
+    out$comment <- comment
   }
 
-  # Create combined key of individual and census
-  # Find duplicates 
-  out <- unique(x[
-    which(duplicated(paste(x[[ind_id]], x[[census_id]], sep = "::"))),
-    ind_id])
-  
+  # Generate message
+  if (nrow(out) > 0) {
+    message("Duplicated measurement records detected")
+  }
+
+  # Return
   return(out)
 }
+

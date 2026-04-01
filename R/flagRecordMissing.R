@@ -1,71 +1,91 @@
-#' Flag individuals with missing census records
+#' Flag missing measurement records
 #'
-#' @param x dataframe containing measurements
-#' @param ind_id column name of unique individual IDs in `x`
-#' @param census_id column name containing census IDs in `x`. Should sort alpha-numerically, either as `Date`, `character` or `numeric` type
-#' @param census_id_vec vector containing all census IDs. Values should match those in `census_id`
+#' @param x `r param_x_stem()`
+#' @param ind_id `r param_id("individual stems")`
+#' @param census_id `r param_census_id()`
+#' @param census_id_vec `r param_census_id_vec()`
+#' @param comment `r param_comment()`
 #'
-#' @details
-#' `ind_id` must be unique. When processing multiple plots, either run the function separately for each plot, or ensure that `ind_id` is unique across plots.
-#'
-#' When processing multiple plots, if `census_id` is not unique across plots, run the function separately for each plot.
-#'
-#'#' @return dataframe with missing ind_id and census_id combinations that fall between the first and last recorded census for that individual. 
+#' @return dataframe with values of `ind_id` and `census_id` that are missing from `x`
 #' 
+#' @details
+#' `census_id` can be either a vector of census dates, or census IDs. These 
+#' values are not required to represent actual dates, but should sort 
+#' alpha-numerically in the order of the censuses.
+#'
 #' @examples
 #' df <- data.frame(
-#'   tree_id = c(1, 1, 2, 2, 2),
-#'   year = c(2010, 2020, 2010, 2015, 2020),
-#'   plot = "Plot_A"
+#'   tree_id = c(1, 1, 2, 2, 2, 3),
+#'   year = c(2010, 2020, 2010, 2015, 2020, 2010),
+#'   dbh = c(10, 12, 15, 16, 17, 5)
 #' )
+#'
+#' flagRecordMissing(df, ind_id = "tree_id", census_id = "year")
+#'
+#' all_years <- c(2010, 2012, 2015, 2020)
 #' 
-#' years <- c(2010, 2015, 2020)
-#' 
-#' flagRecordMissing(df, "tree_id", "year", years)
-#' 
+#' flagRecordMissing(
+#'   x = df, 
+#'   ind_id = "tree_id", 
+#'   census_id = "year", 
+#'   census_id_vec = all_years, 
+#'   comment = "Missing measurement record")
+#'
 #' @export
 #' 
-flagRecordMissing <- function(x, ind_id, census_id, census_id_vec) { 
+flagRecordMissing <- function(x, ind_id, census_id, census_id_vec = NULL, comment = NULL) { 
 
-  # Check columns exist
-  if (!all(c(ind_id, census_id) %in% names(x))) {
-    stop("Columns 'ind_id' or 'census_id' not found in `x`")
+  # Check input
+  columnCatch(x, ind_id, census_id)
+
+  # If census ID vector not provided, guess from existing data
+  if (is.null(census_id_vec)) {
+    message("'census_id_vec' not provided, guessing from values in 'census_id'")
+    census_id_vec <- sort(unique(x[[census_id]])) 
+  } else {
+    census_id_vec <- sort(census_id_vec)
   }
 
-  # Sort census ID vector 
-  census_id_vec <- sort(census_id_vec)
+  # Split by individual
+  x_split <- split(x, x[, ind_id, drop = FALSE], drop = TRUE)
 
-  # Split by individual ID
-  x_split <- split(x, x[[ind_id]])
+  # Only retain multi-census individuals
+  x_split_fil <- x_split[unlist(lapply(x_split, nrow)) > 1]
 
-  # For each individual:
-  out <- do.call(rbind, lapply(x_split, function(y) {
+  # Identify missing records
+  missing_list <- lapply(x_split_fil, function(y) {
+    first_c <- min(y[[census_id]])
+    last_c  <- max(y[[census_id]])
 
-    # Find first and last censuses recorded for this specific individual
-    first_census <- min(y[[census_id]])
-    last_census <- max(y[[census_id]])
-
-    # Find missing censuses within the range of this individual's lifespan in the data
-    missing_census <- census_id_vec[
+    gaps <- census_id_vec[
       !census_id_vec %in% y[[census_id]] & 
-      census_id_vec < last_census & 
-      census_id_vec > first_census
+      census_id_vec < last_c & 
+      census_id_vec > first_c
     ]
 
-    # If any missing censuses:
-    if (length(missing_census) > 0) {
-      # Use first row of this individual as a template for metadata (Plot ID, etc.)
-      new_meas <- data.frame(
-        unique(y[[ind_id]]),
-        missing_census)
-      names(new_meas) <- c(ind_id, census_id)
+    if (length(gaps) > 0) {
+      template <- y[1, ind_id, drop = FALSE]
+      new_rows <- template[rep(1, length(gaps)), , drop = FALSE]
+      new_rows[[census_id]] <- gaps
+      new_rows
     } else {
-      new_meas <- NULL
+      NULL
     }
+  })
 
-    # Return
-    new_meas
-  }))
+  out <- do.call(rbind, missing_list)
+  rownames(out) <- NULL
 
+  # Generate comment
+  if (!is.null(comment) && nrow(out) > 0) {
+    out$comment <- comment
+  }
+
+  # Generate message
+  if (nrow(out) > 0) {
+    message("Missing measurement records detected")
+  }
+
+  # Return
   return(out)
 }

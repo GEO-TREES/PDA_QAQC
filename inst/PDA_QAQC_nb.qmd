@@ -1,0 +1,617 @@
+---
+title: "GEO-TREES tree inventory QA/QC"
+author:
+  - "John L. Godlee"
+  - "Vincyane Badouard"
+date: "`r Sys.Date()`"
+version: "0.1"
+format: 
+  html:
+    embed-resources: true
+    toc: true
+    toc-location: left
+    toc-title: "Contents"
+    number-sections: true
+    code-fold: "show"
+    df-print: "paged"
+    html-math-method: katex
+    other-links:
+      - text: GEO-TREES website
+        href: https://geo-trees.org
+    code-links:
+      - text: GitHub
+        href: https://github.com/GEO-TREES/PDA_QAQC
+engine: knitr
+---
+
+Version: **{{< meta version >}}**
+
+# Introduction
+
+This interactive R notebook provides a workflow for quality assurance and quality control (QA/QC) of GEO-TREES tree inventory data. 
+
+This notebook is provided as both a `.qmd` Quarto file, which we recommend running in RStudio, and as a `.ipynb` Jupyter Notebook, which you can run in JupyterLab either locally or on the ESA/NASA MAAP platform. You can use either version to QA/QC your data.
+
+The process for QA/QC:
+
+1. Create a copy of your raw data that conforms to the GEO-TREES L0 data format. See the GEO-TREES Tree Inventory Guidelines Document, Section 17: Data format. You can use the [ATFS Data Harmonization Shiny app]() to help with this. __The original raw data should not be altered__.
+2. Open the notebook and load your __copy__ of the L0 tree inventory data.
+3. Run the code chunks interactively in the notebook. Look at the outputs, and make changes to the input data where necessary. Changes can be made either by adding code to the notebook, or manually editing your __copy__ of the L0 tree inventory data. If you choose to manually edit your tree inventory data, make a second copy of the data for this purpose.
+4. Once you have finished working through the notebook, save and render the notebook as a HTML file. Note that all code in the notebook must run without errors for the file to render successfully. The method depends on whether you are using the `.qmd` or `.ipynb` version:
+    * `.qmd` in RStudio: Run `quarto::quarto_render("PDA_QAQC_nb.qmd", output_format = "html")` in the R console. You may need to run `install.packages("quarto")` first.
+    * `.ipynb` in JupyterLab: Click `File > Save and Export Notebook As > HTML`
+5. Send the following to GEO-TREES:
+    * Original version of the raw data
+    * Formatted raw data in the GEO-TREES L0 data format.
+    * Raw data with changes made following QA/QC
+    * The completed `.qmd` / `.ipynb` QA/QC notebook.
+    * Rendered HTML of the QA/QC notebook 
+
+# Setup
+
+Install and load the GEO-TREES tree inventory QA/QC R package. This package contains various convenience functions for flagging and optionally correcting tree inventory data. The package will also load various other packages as dependencies. If you want to load additional packages to help you explore and manipulate your tree inventory data, you can add to the code chunk below.
+
+
+```{r}
+#| eval: false
+devtools::install_github("GEO-TREES/treeInvQC")
+```
+
+
+```{r}
+library(treeInvQC)
+library(wfoAPI)  # Query the World Flora Online database to match taxonomic names
+library(ggplot2)  # Augment `plotScatter()` and `plotHistogram()` 
+library(tibble)  # `tribble()`
+library(DT)  # Pretty tables in HTML notebooks
+# TODO:
+# devtools::load_all("~/gdrive/geo-trees/PDA_QAQC/treeInvQC/")
+```
+
+Throughout the notebook we display the help files for the different functions in the notebook using the `displayHelp()` function. Below is the help file for the `treeInvQAQC` package:
+
+```{r}
+#| echo: false
+displayHelp(treeInvQC)
+```
+
+# Create L0 tree inventory data   
+
+TODO: This can essentially be a generalised tutorial of my `01_fmt.R` scripts.
+
+# Load data
+
+Edit the code below to load your tree inventory data in the GEO-TREES L0 data format.
+
+Load stem measurement table:
+
+```{r}
+s <- read.csv("../../bicuar_test_data/out/stem.csv")
+```
+
+Load plot meta-data table:
+
+```{r}
+p <- read.csv("../../bicuar_test_data/out/plot.csv")
+```
+
+Load plot geo-location table:
+
+```{r}
+pt <- read.csv("../../bicuar_test_data/out/plot_pt.csv")
+```
+
+Optionally load taxonomy table:
+
+```{r}
+#| eval: false
+tx <- read.csv("taxon_example.csv")
+```
+
+Optionally load additional stem height data:
+
+```{r}
+#| eval: false
+h <- read.csv("height_example.csv")
+```
+
+Optionally load additional wood density data:
+
+```{r}
+#| eval: false
+wd <- read.csv("wood_density_example.csv")
+```
+
+# Missing, duplicated, and phantom records
+
+```{r}
+#| echo: false
+displayHelp(flagRecordMissing)
+```
+
+```{r}
+df_flagRecordMissing <- flagRecordMissing(
+  x = s,
+  ind_id = c("site_id", "plot_id", "tree_id", "stem_id"),
+  census_id = "census_id",
+  census_id_vec = c(1, 2, 3),  # Vector of census IDs
+  comment = "Missing stem measurement record"
+)
+
+datatable(df_flagRecordMissing)
+```
+
+Missing records should be added to the stem measurement table. Missing measurement values may be estimated by e.g. `correctDiamSeries()` and `correctTaxonSeries()`.
+
+```{r}
+#| echo: false
+displayHelp(flagRecordDup)
+```
+
+```{r}
+# Flag duplicated records based on ID values
+df_flagRecordDup <- flagRecordDup(
+  x = s, 
+  meas_id = c("site_id", "plot_id", "tree_id", "stem_id", "measurement_id"),
+  census_id = "census_id"
+)
+
+datatable(df_flagRecordDup)
+```
+
+
+```{r}
+#| echo: false
+displayHelp(flagValMissing)
+```
+
+```{r}
+df_flagValMissing <- flagValMissing(
+  x = s,
+  meas_id = c("site_id", "plot_id", "tree_id", "stem_id", "measurement_id"),
+  target = c(
+    "site_id", 
+    "plot_id", 
+    "tree_id", 
+    "stem_id", 
+    "census_id", 
+    "measurement_date", 
+    "taxon_name", 
+    "x_rel_m", 
+    "y_rel_m"
+  ),
+  cond = NULL,
+  comment = "Missing measurement values"
+)
+
+datatable(df_flagValMissing)
+```
+
+```{r}
+df_flagValMissing_diam_cm <- flagValMissing(
+  x = s,
+  meas_id = c("site_id", "plot_id", "tree_id", "stem_id", "measurement_id"),
+  target = "diam_cm",
+  cond = grepl("A", s$code) & !grepl("T|F", s$code),
+  comment = "Missing diameter values"
+)
+
+datatable(df_flagValMissing_diam_cm)
+```
+
+```{r}
+df_flagValMissing_pom_m <- flagValMissing(
+  x = s,
+  meas_id = c("site_id", "plot_id", "tree_id", "stem_id", "measurement_id"),
+  target = "pom_m",
+  cond = !is.na(s$diam_cm),
+  comment = "Missing POM values"
+)
+
+datatable(df_flagValMissing_pom_m)
+```
+
+```{r}
+#| echo: false
+displayHelp(flagRecruitBig)
+```
+
+```{r}
+df_flagRecruitBig <- flagRecruitBig(
+  x = s,
+  ind_id = c("site_id", "plot_id", "tree_id", "stem_id"),
+  diam = "diam_cm",
+  census_date = "census_date",
+  census_date_vec = NULL, 
+  min_diam_threshold = 10,  # Minimum diameter threshold of the plot(s)
+  growth_max = 5,  # Maximum feasible annual diameter growth rate 
+  comment = "Overgrown recruit"
+)
+
+datatable(df_flagRecruitBig)
+```
+
+```{r}
+#| echo: false
+displayHelp(flagRecruitPre)
+```
+
+```{r}
+df_flagRecruitPre <- flagRecruitPre(
+  x = s,
+  ind_id = c("site_id", "plot_id", "tree_id", "stem_id"),
+  census_id = "census_id",
+  target = c("diam_cm"),
+  comment = "Pre-census recruit"
+)
+
+datatable(df_flagRecruitPre)
+```
+
+# Outlier numeric values
+
+```{r}
+#| echo: false
+displayHelp(plotHistogram)
+```
+
+Inspect the distribution of diameter measurements. Are all measurements larger than the minimum diameter threshold of the plot? Are any measurements unrealistically large? 
+
+```{r}
+# Plot a histogram
+plotHistogram(
+	x = s$diam_cm, 
+	boundary = 0,  # Align bars with 0
+	colour = "black",  # Make pretty 
+	fill = "grey"
+) + 
+  xlab("Stem diameter (cm)")  # Add x axis label
+
+# Summarise values
+summary(s$diam_cm)
+```
+
+If height measurements are available, find potentially erroneous measurements based on the relationship between height and diameter measurements.
+
+```{r}
+displayHelp(flagModOutlier)
+```
+
+```{r}
+# Fit a simple height-diameter model using the BIOMASS package
+hmod <- BIOMASS::modelHD(
+  D = s$diam_cm, 
+  H = s$height_m,
+  method = "weibull",
+  bayesian = FALSE,
+  drawGraph = TRUE)
+
+# Flag outlier measurements using model residuals
+df_flagModOutlier_height_m_diam_cm <- flagModOutlier(
+  x = s, 
+  meas_id = c("site_id", "plot_id", "tree_id", "stem_id", "measurement_id"),
+  mod = hmod$model, 
+  x_var = "diam_cm",
+  y_var = "height_m",
+  threshold = 3,
+  comment = "Height-diameter model outlier"
+)
+
+datatable(df_flagModOutlier_height_m_diam_cm)
+```
+
+```{r}
+#| echo: false
+displayHelp(plotScatter)
+```
+
+```{r}
+# Create scatter plot with outliers flagged
+s_hd <- merge(s, df_flagModOutlier_height_m_diam_cm, all.x = TRUE)
+
+plotScatter(
+  x = s_hd$diam_cm, 
+  y = s_hd$height_m, 
+  flag = s_hd$comment,
+  alpha = 0.5)
+```
+
+```{r}
+#| echo: false
+displayHelp(flagValOutlier)
+```
+
+```{r}
+df_flagValOutlier_diam_cm <- flagValRange(
+  x = s,
+  meas_id = c("site_id", "plot_id", "tree_id", "stem_id", "measurement_id"),
+  target = "diam_cm",
+  threshold = c(0, 200),
+  comment = "Diameter measurements outside range"
+)
+
+datatable(df_flagValOutlier_diam_cm)
+```
+
+```{r}
+df_flagValOutlier_height_m <- flagValRange(
+  x = s,
+  meas_id = c("site_id", "plot_id", "tree_id", "stem_id", "measurement_id"),
+  target = "height_m",
+  threshold = c(0, 50),
+  comment = "Height measurements outside range"
+)
+
+datatable(df_flagValOutlier_height_m)
+```
+
+```{r}
+#| echo: false
+displayHelp(flagValUnit)
+```
+
+```{r}
+df_flagValUnit <- flagValUnit(
+  x = s,
+  plot_id = "plot_id",
+  census_id = "census_id",
+  target = "diam_cm",
+  threshold = 5, 
+  cv_threshold = 100,
+  comment = "Diameter unit-shift"
+)
+
+datatable(df_flagValUnit)
+```
+
+```{r}
+#| echo: false
+displayHelp(flagValRound)
+```
+
+```{r}
+df_flagValRound_diam_cm <- flagValRound(
+  x = s, 
+  census_id = c("plot_id", "census_id"),
+  target = "diam_cm",
+  precision = 1, 
+  threshold = 0.3,
+  comment = "Rounded diameter values"
+)
+
+datatable(df_flagValRound_diam_cm)
+```
+
+# Stem condition codes
+
+```{r}
+df_flagCodeVal <- flagCodeVal(
+  x = s,
+  meas_id = c("site_id", "plot_id", "tree_id", "stem_id", "measurement_id"),
+  target = "code",
+  accepted = c("A", "D", "S", "F", "M", "B", "T"),
+  invalid_comb = list(
+	c("A", "D"),
+	c("S", "F"),
+	c("B", "T"),
+	c("M", "A"),
+	c("M", "D"),
+	c("M", "S"),
+	c("M", "F"),
+	c("M", "B"),
+	c("M", "T")
+  ),
+  cond = NULL,
+  comment = "Invalid code values"
+)
+
+datatable(df_flagCodeVal)
+```
+
+# Stem coordinate issues
+
+```{r}
+# Plot stem coordinates
+plotScatter(s$x_rel_m, s$y_rel_m) + 
+  coord_equal() # +
+  # facet_wrap(~s$plot_id)
+```
+
+```{r}
+# Example dataframe with information on subplot relative coordinates
+# Replace with example from your plots. 
+subs <- tribble(
+  ~subplot_id, ~x_min, ~x_max, ~y_min, ~y_max,
+  1,           0,      100,    0,      10,
+  2,           0,      100,    10,     20,
+  3,           0,      100,    20,     30,
+  4,           0,      100,    30,     40,
+  5,           0,      100,    40,     50,
+  6,           0,      100,    50,     60,
+  7,           0,      100,    60,     70,
+  8,           0,      100,    70,     80,
+  9,           0,      100,    80,     90,
+  10,          0,      100,    90,     100
+)
+
+# If the subplot layout varies by plot you can create unique subplot IDs for each plot in the `subs` dataframe with multiple ID columns.
+
+# Check if stem measurements located inside the correct subplot 
+# according to relative coordinates and subplot ID.
+df_correctLocSub <- correctLocSub(
+  x = s,
+  meas_id = c("site_id", "plot_id", "tree_id", "stem_id", "measurement_id"),
+  subplot_id = "subplot_id",
+  x_rel = "x_rel_m",
+  y_rel = "y_rel_m",
+  subs = subs,
+  subs_subplot_id = "subplot_id",
+  subs_x_min = "x_min",
+  subs_x_max = "x_max",
+  subs_y_min = "y_min",
+  subs_y_max = "y_max",
+  correct = TRUE,
+  comment = "Stem coordinates outside subplot"
+)
+
+datatable(df_correctLocSub)
+```
+
+```{r}
+df_flagMultiLoc <- flagMultiLoc(
+  x = s,
+  ind_id = c("site_id", "plot_id", "tree_id"),
+  census_id = "census_id",
+  x_rel = "x_rel_m",
+  y_rel = "y_rel_m",
+  threshold = 5,
+  comment = "Multi-stemmed tree with incongruous stem coordinates"
+)
+
+datatable(df_flagMultiLoc)
+```
+
+# Taxonomic name issues 
+
+```{r}
+displayHelp(flagTaxonName)
+```
+
+```{r}
+df_flagTaxonName <- flagTaxonName(
+  x = s,
+  meas_id = c("site_id", "plot_id", "tree_id", "stem_id", "measurement_id"),
+  taxon_name = "taxon_name",
+  family = NULL, 
+  genus = NULL,
+  species = NULL,
+  regex = "[^a-zA-Z ]",
+  comment = "Taxonomic name issue"
+)
+
+datatable(df_flagTaxonName)
+```
+
+```{r}
+df_flagMultiTaxon <- flagMultiTaxon(
+  x = s,
+  ind_id = c("site_id", "plot_id", "tree_id"),
+  census_id = "census_id",
+  taxon_name = "taxon_name",
+  comment = "Multi-stemmed tree with multiple taxonomic names"
+)
+
+datatable(df_flagMultiTaxon)
+```
+
+# Time-series inconsistencies
+
+__This part of the notebook should only be used if you have access to multi-census data.__
+
+Even if you are only contributing one tree inventory census to GEO-TREES you can still use data from multiple censuses to identify potential errors in the GEO-TREES census.
+
+```{r}
+# TODO:
+# df_correctDiamSeries <- correctDiamSeries(
+#   x = s,
+#   ind_id = c("site_id", "plot_id", "tree_id", "stem_id"),
+#   census_date = "census_date",
+#   diam = "diam_cm",
+#   pom = "pom_m",
+#   threshold_pos = 5, 
+#   threshold_neg = -2,
+#   correct = c("pom_change", "punctual", "shift"),
+#   correct_type = c("linear", "individual")
+# 
+# datatable(df_correctDiamSeries)
+```
+
+
+```{r}
+# TODO:
+# df_correctMortSeries <- correctMortSeries(
+#   x = s,
+#   ind_id = c("site_id", "plot_id", "tree_id", "stem_id"),
+#   census_date = "census_date",
+#   alive = "alive")
+# 
+# datatable(df_correctMortSeries)
+```
+
+```{r}
+df_flagCodeSeries <- flagCodeSeries(
+  x = s,
+  ind_id = c("site_id", "plot_id", "tree_id", "stem_id"),
+  census_id = "census_id",
+  target = "code",
+  invalid_trans = list(
+    c("D", "A"),
+    c("F", "S"),
+    c("B", NA_character_),
+    c("T", NA_character_),
+    c("T", NA_character_)
+  ),
+  comment = "Invalid code transition"
+)
+
+datatable(df_flagCodeSeries)
+```
+
+```{r}
+df_flagTaxonSeries <- flagTaxonSeries(
+  x = s,
+  ind_id = c("site_id", "plot_id", "tree_id", "stem_id"),
+  census_id = "census_id",
+  taxon_name = "taxon_name",
+  comment = "Taxon name differs among censuses"
+)
+
+datatable(df_flagTaxonSeries)
+```
+
+# Miscellaneous checks
+
+```{r}
+df_flagMultiMany <- flagMultiMany(
+  x = s,
+  ind_id = c("site_id", "plot_id", "tree_id"),
+  census_id = "census_id",
+  threshold = 12,
+  comment = "Tree with too many stems"
+)
+
+datatable(df_flagMultiMany)
+```
+
+# Create output objects
+
+Create a list of flag dataframes and write to file:
+
+```{r}
+flag_list <- list(
+  flagRecordMissing = df_flagRecordMissing,
+  flagRecordDup = df_flagRecordDup,
+  flagValMissing = df_flagValMissing,
+  flagValMissing_diam_cm = df_flagValMissing_diam_cm,
+  flagValMissing_pom_m = df_flagValMissing_pom_m,
+  flagRecruitBig = df_flagRecruitBig,
+  flagRecruitPre = df_flagRecruitPre,
+  flagModOutlier_height_m_diam_cm = df_flagModOutlier_height_m_diam_cm,
+  flagValOutlier_diam_cm = df_flagValOutlier_diam_cm,
+  flagValOutlier_height_m = df_flagValOutlier_height_m,
+  flagValUnit = df_flagValUnit,
+  flagValRound_diam_cm = df_flagValRound_diam_cm,
+  flagCodeVal = df_flagCodeVal,
+  correctLocSub = df_correctLocSub,
+  flagMultiLoc = df_flagMultiLoc,
+  flagTaxonName = df_flagTaxonName,
+  flagMultiTaxon = df_flagMultiTaxon,
+#   correctDiamSeries = df_correctDiamSeries,
+#   correctMortSeries = df_correctMortSeries,
+  flagCodeSeries = df_flagCodeSeries,
+  flagTaxonSeries = df_flagTaxonSeries,
+  flagMultiMany = df_flagMultiMany
+)
+
+saveRDS(flag_list, "./flag_list.rds")
+```

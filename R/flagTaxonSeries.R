@@ -1,14 +1,12 @@
 #' Flag individuals where taxonomic name differs among censuses
 #'
-#' @param x dataframe containing measurements
-#' @param taxon_name column name containing taxonomic names in `x`
-#' @param ind_id column name containing individual IDs in `x`
-#' @param census_id column name containing census IDs in `x`. Should sort alpha-numerically, either as `Date`, `character` or `numeric` type
+#' @param x `r param_x_stem()`
+#' @param ind_id `r param_id("individual stems")`
+#' @param taxon_name `r param_taxon_name()`
+#' @param census_id `r param_census_id()`
+#' @param comment `r param_comment()`
 #'
-#' @return values of `ind_id` where taxonomic name differs among censuses
-#'
-#' @details
-#' `ind_id` must be unique. When processing multiple plots, either run the function separately for each plot, or ensure that `ind_id` is unique across plots.
+#' @return dataframe with values of `ind_id` where `taxon_name` differs among censuses
 #' 
 #' @examples
 #' df <- data.frame(
@@ -16,33 +14,41 @@
 #'   census = c(1, 2, 1, 2, 1, 2),
 #'   sp = c("A", "B", "C", "C", "D", "D")
 #' )
+
 #' flagTaxonSeries(df, "sp", "id", "census")
-#' # [1] 1
 #' 
 #' @export
 #' 
-flagTaxonSeries <- function(x, taxon_name, ind_id, census_id) { 
+flagTaxonSeries <- function(x, ind_id, taxon_name, census_id, comment = NULL) { 
 
   # Check columns exist
-  if (!all(c(ind_id, census_id, taxon_name) %in% names(x))) {
-    stop("Columns 'taxon_name', 'ind_id' or 'census_id' not found in `x`")
+  columnCatch(x, ind_id, taxon_name, census_id)
+
+  # Aggregate to get count and concatenated taxonomic names
+  out <- aggregate(x[taxon_name], by = x[ind_id], 
+    FUN = function(y) { 
+      u <- unique(na.omit(y))
+      # Return a named vector with both pieces of information
+      c(n_unique = length(u), 
+      taxon_name = paste(u, collapse = ";"))
+    })
+
+  # Flatten the matrix column that aggregate() creates into normal columns
+  out <- cbind(out[ind_id], as.data.frame(out[[taxon_name]]))
+  out_fil <- out[out$n_unique > 1, c(ind_id, "taxon_name")]
+  names(out_fil)[ncol(out_fil)] <- taxon_name
+  rownames(out_fil) <- NULL
+
+  # Generate comment
+  if (!is.null(comment) & nrow(out_fil) > 0) {
+    out_fil$comment <- comment
   }
 
-  # Ensure input is a data frame
-  if (!is.data.frame(x)) {
-    x <- as.data.frame(x)
+  # Generate message
+  if (nrow(out_fil) > 0) {
+    message("Taxon names differ among censuses")
   }
   
-  # Identify individual IDs with multiple unique taxonomic names
-  n_unique <- as.numeric(
-    ave(x[[taxon_name]], x[[ind_id]], FUN = function(y) {
-      length(unique(y))
-    })
-  )
-  
-  # Extract ind_ids with multiple taxonomic names
-  out <- unique(x[which(n_unique > 1), ind_id])
-  
-  # Return 
-  return(out)
+  # Return
+  return(out_fil)
 }

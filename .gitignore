@@ -1,0 +1,5 @@
+inst/.ipynb_checkpoints/
+inst/*.html
+inst/*.ipynb
+inst/*_files/
+man/

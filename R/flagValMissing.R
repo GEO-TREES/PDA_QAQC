@@ -1,13 +1,16 @@
-#' Flag measurements with missing values, optionally with conditions
+#' Flag measurements with missing values
 #'
-#' @param x dataframe containing measurements
-#' @param target column name in `x` where missing values will be checked 
-#' @param cond a logical expression defining an optional condition based on other columns in `x`
+#' @param x `r param_x_stem()`
+#' @param meas_id `r param_id("individual measurements")`
+#' @param target `r param_target()`
+#' @param cond `r param_cond()`
+#' @param comment `r param_comment()`
 #'
 #' @details
-#' Identifies row indices where `target` is `NA` or empty (""), only for rows where the criteria in `cond` are met. Use `&` for #' simultaneous conditions and `|` for alternative conditions.
+#' Identifies records where any column in `target` is `NA` or empty (`""`), 
+#' only for rows where `cond` evaluates to `TRUE`.
 #'
-#' @return integer vector of row indices from `x` that fail the check.
+#' @return dataframe of `meas_id` with missing values in `target`
 #' 
 #' @examples
 #' df <- data.frame(
@@ -15,50 +18,69 @@
 #'   status = c("alive", "alive", "dead", "alive", "dead")
 #' )
 #' 
-#' # Find rows where DBH is missing but the tree is alive
-#' flagValMissing(df, "dbh", status == "alive")
-#' # [1] 2 4
+#' flagValMissing(df, "dbh", df$status == "alive")
 #' 
 #' @export
-flagValMissing <- function(x, target, cond = NULL) {
+#' 
+flagValMissing <- function(x, meas_id, target, cond = NULL, comment = NULL) {
   
-  # Check columns exist
-  if (!target %in% names(x)) {
-    stop(paste0("Column '", target, "' not found in `x`"))
+  # Check input
+  columnCatch(x, meas_id, target)
+
+  # Check cond is same length as rows in x
+  if (!is.null(cond)) { 
+    if (nrow(x) != length(cond)) {
+      stop("'cond' must be the same length as the number of rows in 'x'")
+    }
   }
 
-  # Capture the condition
-  cond_expr <- substitute(cond)
-  
   # Evaluate condition within the data frame environment
-  if (missing(cond)) {
+  if (is.null(cond)) {
     in_scope <- rep(TRUE, nrow(x))
   } else {
-    in_scope <- eval(cond_expr, x, parent.frame())
+    in_scope <- cond
     # Ensure NAs in condition result in FALSE
     in_scope[is.na(in_scope)] <- FALSE
   }
   
-  # Check for missingness in the target column
-  val <- x[[target]]
+  # Isolate target columns
+  val <- x[, target, drop = FALSE]
 
-  # NA check
-  is_missing <- is.na(val)
+  miss_list <- lapply(val, function(i) {
+    is_missing <- is.na(i)
 
-  # Check for empty/whitespace strings if character
-  if (is.character(val)) {
-    is_missing <- is_missing | trimws(val) == ""
+    if (is.character(i)) {
+      is_missing <- is_missing | trimws(i) == ""
+    }
+    
+    if (is.numeric(i)) {
+      is_missing <- is_missing | !is.finite(i)
+    } 
+
+    is_missing
+  })
+
+  # Convert list back to a matrix 
+  miss_df <- as.data.frame(do.call(cbind, miss_list))
+  any_missing <- rowSums(miss_df) > 0
+
+  # Add meas_id columns
+  miss_df_meas <- cbind(x[,meas_id], miss_df)
+
+  # Filter to rows missing any values
+  out <- miss_df_meas[any_missing,]
+
+  # Generate comment
+  if (!is.null(comment) && nrow(out) > 0) { 
+    out$comment <- comment
   }
 
-  # Check for non-finite values (NaN, Inf) if numeric
-  if (is.numeric(val)) {
-    # !is.finite returns TRUE for NA, NaN, Inf, and -Inf
-    is_missing <- !is.finite(val)
-  } 
+  # Generate message
+  if (nrow(out) > 0) {
+    message("Missing values detected")
+  }
 
-  # Identify indices where both are true
-  out <- which(in_scope & is_missing)
-  
   # Return
   return(out)
 }
+

@@ -1,17 +1,12 @@
 #' Flag trees where the number of stems exceeds a threshold
 #'
-#' @param x dataframe containing stem measurements
-#' @param tree_id column name of unique tree IDs in `x`
-#' @param census_id column name containing census IDs in `x`
-#' @param threshold numeric maximum allowable number of stems for a single tree 
-#' in a single census.
+#' @param x `r param_x_stem()`
+#' @param ind_id `r param_id("individual trees")`
+#' @param census_id `r param_census_id(optional = TRUE)`
+#' @param threshold maximum allowable number of stems for a single tree in a single census.
+#' @param comment `r param_comment()`
 #'
-#' @details
-#' This function counts the number of stems associated with each `tree_id` 
-#' for every `census_id`. If the count exceeds the `threshold` in any census, 
-#' the `tree_id` is flagged.
-#'
-#' @return A vector of unique `tree_id` values that exceed the stem threshold.
+#' @return dataframe with values of `ind_id` containing trees with more stems than 'threshold'
 #' 
 #' @examples
 #' df <- data.frame(
@@ -20,26 +15,37 @@
 #'   dbh = c(10, 12, 14, 20, 22)
 #' )
 #' 
-#' # Flag trees with more than 2 stems
 #' flagMultiMany(df, "tree_id", "year", threshold = 2)
-#' # [1] 1
 #' 
 #' @export
-flagMultiMany <- function(x, tree_id, census_id, threshold) {
+flagMultiMany <- function(x, ind_id, census_id = NULL, threshold, comment = NULL) {
   
-  if (!all(c(tree_id, census_id) %in% names(x))) {
-    stop("Specified tree_id or census_id columns not found in the dataframe.")
+  # Check input
+  columnCatch(x, ind_id, census_id)
+
+  threshold <- classCatch(threshold, "numeric")
+
+  if (length(threshold) > 1) {
+    stop("'threshold' must be a numeric vector of length 1")
   }
 
-  # Create a table of counts for each Tree/Census combination
-  counts <- table(x[[tree_id]], x[[census_id]])
-  
-  # Identify rows (tree_ids) where any census count > threshold
-  bad_trees_logical <- apply(counts, 1, function(row) any(row > threshold))
-  
-  # Extract tree_id
-  out <- names(bad_trees_logical)[bad_trees_logical]
+  # Aggregate: Count the length of the dummy column for each group
+  x$n_stem <- 1
+  out <- aggregate(x["n_stem"], by = x[c(ind_id, census_id)], FUN = sum)
+
+  # Filter to multi-stemmed trees with more stems than threshold
+  out_fil <- out[out$n_stem > threshold,]
+
+  # Generate comment
+  if (!is.null(comment) & nrow(out_fil) > 0) {
+    out_fil$comment <- comment
+  }
+
+  # Generate message
+  if (nrow(out_fil) > 0) {
+    message("Trees with too many stems detected")
+  }
   
   # Return
-  return(out)
+  return(out_fil)
 }
