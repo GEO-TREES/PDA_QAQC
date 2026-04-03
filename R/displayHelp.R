@@ -7,8 +7,8 @@
 #'   (e.g., `mean`) or a character string (e.g., `"mean"`).
 #' @param pkg optional, character string specifying the package to 
 #'   which the function belongs. If `NULL` searches all loaded packages
-#' @param html logical, if `TRUE` (default), returns an object formatted 
-#'   for HTML output in Quarto/RMarkdown. If `FALSE`, prints plain text 
+#' @param html logical, if `TRUE`, returns an object formatted 
+#'   for HTML output in Quarto/RMarkdown. If `FALSE` (default), prints plain text 
 #'   to console
 #'
 #' @return If `html = TRUE`, returns a `knit_asis` object containing 
@@ -21,15 +21,15 @@
 #' @importFrom htmltools htmlPreserve
 #' 
 #' @examples
-#' # Display help for the 'mean' function as HTML
+#' # Display help for the 'mean' function as plain text
 #' displayHelp(mean)
 #' 
-#' # Display help for 'ggplot' from the ggplot2 package as plain text
-#' # displayHelp("ggplot", pkg = "ggplot2", html = FALSE)
+#' # Display help for 'ggplot' from the ggplot2 package as HTML
+#' # displayHelp("ggplot", pkg = "ggplot2", html = TRUE)
 #' 
 #' @export
 #'
-displayHelp <- function(x, pkg = NULL, html = TRUE) {
+displayHelp <- function(x, pkg = NULL, html = FALSE) {
   # Convert unquoted name to string if necessary
   # Note: substitute(x) captures the literal expression passed by the user
   x_str <- if (is.character(substitute(x))) {

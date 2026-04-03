@@ -62,10 +62,16 @@ devtools::install_github("GEO-TREES/treeInvQC")
 library(treeInvQC)
 library(wfoAPI)  # Query the World Flora Online database to match taxonomic names
 library(ggplot2)  # Augment `plotScatter()` and `plotHistogram()` 
-library(tibble)  # `tribble()`
+library(tibble)  # `tribble()` - create dataframes (tibbles) by row
 library(DT)  # Pretty tables in HTML notebooks
-# TODO:
-# devtools::load_all("~/gdrive/geo-trees/PDA_QAQC/treeInvQC/")
+```
+
+```{r}
+#| echo: false
+# Change default displayHelp rendering if compiled as HTML
+if (getOption("knitr.in.progress")) {
+  formals(displayHelp)$html <- TRUE
+} 
 ```
 
 Throughout the notebook we display the help files for the different functions in the notebook using the `displayHelp()` function. Below is the help file for the `treeInvQAQC` package:
@@ -528,14 +534,19 @@ Even if you are only contributing one tree inventory census to GEO-TREES you can
 
 
 ```{r}
-# TODO:
-# df_correctMortSeries <- correctMortSeries(
-#   x = s,
-#   ind_id = c("site_id", "plot_id", "tree_id", "stem_id"),
-#   census_date = "census_date",
-#   alive = "alive")
-# 
-# datatable(df_correctMortSeries)
+s$alive <- NA
+s$alive[grepl("A", s$code)] <- TRUE
+s$alive[grepl("D", s$code)] <- FALSE
+
+# Note: If a code contains both A and D, the last line 
+# evaluated (D) will take precedence.
+df_correctMortalitySeries <- correctMortalitySeries(
+  x = s,
+  ind_id = c("site_id", "plot_id", "tree_id", "stem_id"),
+  census_id = "census_id",
+  status = "alive")
+
+datatable(df_correctMortalitySeries)
 ```
 
 ```{r}

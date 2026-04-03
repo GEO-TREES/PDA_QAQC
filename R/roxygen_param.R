@@ -53,8 +53,13 @@ param_census_date_vec <- function(optional = TRUE) {
   paste0(opt1, "vector of all possible census dates", opt2, "Must be coercible to 'Date'")
 }
 
-param_diam <- function() {
-  "column name in 'x' of diameter measurements."
+param_diam <- function(optional = FALSE) {
+  if (optional) { 
+    opt <- "optional, "
+  } else {
+    opt <- NULL
+  }
+  paste0(opt, "column name in 'x' of diameter measurements.")
 }
 
 param_taxon_name <- function() {
