@@ -14,6 +14,7 @@ format:
     number-sections: true
     code-fold: "show"
     df-print: "paged"
+    page-layout: full
     html-math-method: katex
     other-links:
       - text: GEO-TREES website
@@ -21,6 +22,7 @@ format:
     code-links:
       - text: GitHub
         href: https://github.com/GEO-TREES/PDA_QAQC
+jupyter: ir
 engine: knitr
 ---
 
@@ -28,17 +30,33 @@ Version: **{{< meta version >}}**
 
 # Introduction
 
-This interactive R notebook provides a workflow for quality assurance and quality control (QA/QC) of GEO-TREES tree inventory data. 
+This interactive R notebook provides a workflow for quality assurance and
+quality control (QA/QC) of GEO-TREES tree inventory data. 
 
-This notebook is provided as both a `.qmd` Quarto file, which we recommend running in RStudio, and as a `.ipynb` Jupyter Notebook, which you can run in JupyterLab either locally or on the ESA/NASA MAAP platform. You can use either version to QA/QC your data.
+This notebook is provided as both a `.qmd` Quarto file, which we recommend
+running in RStudio, and as a `.ipynb` Jupyter Notebook, which you can run in
+JupyterLab either locally or on the ESA/NASA MAAP platform. You can use either
+version to QA/QC your data.
 
 The process for QA/QC:
 
-1. Create a copy of your raw data that conforms to the GEO-TREES L0 data format. See the GEO-TREES Tree Inventory Guidelines Document, Section 17: Data format. You can use the [ATFS Data Harmonization Shiny app]() to help with this. __The original raw data should not be altered__.
+1. Create a copy of your raw data that conforms to the GEO-TREES L0 data
+   format. See the GEO-TREES Tree Inventory Guidelines Document, Section 17:
+   Data format. You can use the [ATFS Data Harmonization Shiny app]() to help
+   with this. __The original raw data should not be altered__.
 2. Open the notebook and load your __copy__ of the L0 tree inventory data.
-3. Run the code chunks interactively in the notebook. Look at the outputs, and make changes to the input data where necessary. Changes can be made either by adding code to the notebook, or manually editing your __copy__ of the L0 tree inventory data. If you choose to manually edit your tree inventory data, make a second copy of the data for this purpose.
-4. Once you have finished working through the notebook, save and render the notebook as a HTML file. Note that all code in the notebook must run without errors for the file to render successfully. The method depends on whether you are using the `.qmd` or `.ipynb` version:
-    * `.qmd` in RStudio: Run `quarto::quarto_render("PDA_QAQC_nb.qmd", output_format = "html")` in the R console. You may need to run `install.packages("quarto")` first.
+3. Run the code chunks interactively in the notebook. Look at the outputs, and
+   make changes to the input data where necessary. Changes can be made either
+   by adding code to the notebook, or manually editing your __copy__ of the L0
+   tree inventory data. If you choose to manually edit your tree inventory
+   data, make a second copy of the data for this purpose.
+4. Once you have finished working through the notebook, save and render the
+   notebook as a HTML file. Note that all code in the notebook must run without
+   errors for the file to render successfully. The method depends on whether
+   you are using the `.qmd` or `.ipynb` version:
+    * `.qmd` in RStudio: Run `quarto::quarto_render("PDA_QAQC_nb.qmd",
+      output_format = "html")` in the R console. You may need to run
+      `install.packages("quarto")` first.
     * `.ipynb` in JupyterLab: Click `File > Save and Export Notebook As > HTML`
 5. Send the following to GEO-TREES:
     * Original version of the raw data
@@ -49,7 +67,11 @@ The process for QA/QC:
 
 # Setup
 
-Install and load the GEO-TREES tree inventory QA/QC R package. This package contains various convenience functions for flagging and optionally correcting tree inventory data. The package will also load various other packages as dependencies. If you want to load additional packages to help you explore and manipulate your tree inventory data, you can add to the code chunk below.
+Install and load the GEO-TREES tree inventory QA/QC R package. This package
+contains various convenience functions for flagging and optionally correcting
+tree inventory data. The package will also load various other packages as
+dependencies. If you want to load additional packages to help you explore and
+manipulate your tree inventory data, you can add to the code chunk below.
 
 
 ```{r}
@@ -60,7 +82,7 @@ devtools::install_github("GEO-TREES/treeInvQC")
 
 ```{r}
 library(treeInvQC)
-library(wfoAPI)  # Query the World Flora Online database to match taxonomic names
+library(BIOMASS)  # Match taxonomic names to WFO `correctTaxo()`, fit diameter-height models `modelHD()`
 library(ggplot2)  # Augment `plotScatter()` and `plotHistogram()` 
 library(tibble)  # `tribble()` - create dataframes (tibbles) by row
 library(DT)  # Pretty tables in HTML notebooks
@@ -74,7 +96,9 @@ if (getOption("knitr.in.progress")) {
 } 
 ```
 
-Throughout the notebook we display the help files for the different functions in the notebook using the `displayHelp()` function. Below is the help file for the `treeInvQAQC` package:
+Throughout the notebook we display the help files for the different functions
+in the notebook using the `displayHelp()` function. Below is the help file for
+the `treeInvQAQC` package:
 
 ```{r}
 #| echo: false
@@ -87,7 +111,8 @@ TODO: This can essentially be a generalised tutorial of my `01_fmt.R` scripts.
 
 # Load data
 
-Edit the code below to load your tree inventory data in the GEO-TREES L0 data format.
+Edit the code below to load your tree inventory data in the GEO-TREES L0 data
+format.
 
 Load stem measurement table:
 
@@ -130,6 +155,8 @@ wd <- read.csv("wood_density_example.csv")
 
 # Missing, duplicated, and phantom records
 
+## Missing records
+
 ```{r}
 #| echo: false
 displayHelp(flagRecordMissing)
@@ -147,7 +174,11 @@ df_flagRecordMissing <- flagRecordMissing(
 datatable(df_flagRecordMissing)
 ```
 
-Missing records should be added to the stem measurement table. Missing measurement values may be estimated by e.g. `correctDiamSeries()` and `correctTaxonSeries()`.
+Missing records should be added to the stem measurement table. Missing
+measurement values may be estimated by e.g. `correctDiameterSeries()` and
+`correctTaxonSeries()`.
+
+## Duplicated records
 
 ```{r}
 #| echo: false
@@ -165,6 +196,7 @@ df_flagRecordDup <- flagRecordDup(
 datatable(df_flagRecordDup)
 ```
 
+## Missing values
 
 ```{r}
 #| echo: false
@@ -217,6 +249,8 @@ df_flagValMissing_pom_m <- flagValMissing(
 datatable(df_flagValMissing_pom_m)
 ```
 
+## Overgrown recruits
+
 ```{r}
 #| echo: false
 displayHelp(flagRecruitBig)
@@ -237,6 +271,8 @@ df_flagRecruitBig <- flagRecruitBig(
 datatable(df_flagRecruitBig)
 ```
 
+## Pre-recorded recruits
+
 ```{r}
 #| echo: false
 displayHelp(flagRecruitPre)
@@ -254,14 +290,16 @@ df_flagRecruitPre <- flagRecruitPre(
 datatable(df_flagRecruitPre)
 ```
 
-# Outlier numeric values
+# Outlier diameter and height measurements
 
 ```{r}
 #| echo: false
 displayHelp(plotHistogram)
 ```
 
-Inspect the distribution of diameter measurements. Are all measurements larger than the minimum diameter threshold of the plot? Are any measurements unrealistically large? 
+Inspect the distribution of diameter measurements. Are all measurements larger
+than the minimum diameter threshold of the plot? Are any measurements
+unrealistically large? 
 
 ```{r}
 # Plot a histogram
@@ -277,9 +315,11 @@ plotHistogram(
 summary(s$diam_cm)
 ```
 
-If height measurements are available, find potentially erroneous measurements based on the relationship between height and diameter measurements.
+If height measurements are available, find potentially erroneous measurements
+based on the relationship between height and diameter measurements.
 
 ```{r}
+#| echo: false
 displayHelp(flagModOutlier)
 ```
 
@@ -324,7 +364,7 @@ plotScatter(
 
 ```{r}
 #| echo: false
-displayHelp(flagValOutlier)
+displayHelp(flagValRange)
 ```
 
 ```{r}
@@ -351,6 +391,8 @@ df_flagValOutlier_height_m <- flagValRange(
 datatable(df_flagValOutlier_height_m)
 ```
 
+## Unit mixtures
+
 ```{r}
 #| echo: false
 displayHelp(flagValUnit)
@@ -369,6 +411,8 @@ df_flagValUnit <- flagValUnit(
 
 datatable(df_flagValUnit)
 ```
+
+## Rounded values
 
 ```{r}
 #| echo: false
@@ -440,7 +484,8 @@ subs <- tribble(
   10,          0,      100,    90,     100
 )
 
-# If the subplot layout varies by plot you can create unique subplot IDs for each plot in the `subs` dataframe with multiple ID columns.
+# If the subplot layout varies by plot you can create unique subplot IDs for
+# each plot in the `subs` dataframe with multiple ID columns.
 
 # Check if stem measurements located inside the correct subplot 
 # according to relative coordinates and subplot ID.
@@ -480,6 +525,7 @@ datatable(df_flagMultiLoc)
 # Taxonomic name issues 
 
 ```{r}
+#| echo: false
 displayHelp(flagTaxonName)
 ```
 
@@ -499,6 +545,11 @@ datatable(df_flagTaxonName)
 ```
 
 ```{r}
+#| echo: false
+displayHelp(flagMultiTaxon)
+```
+
+```{r}
 df_flagMultiTaxon <- flagMultiTaxon(
   x = s,
   ind_id = c("site_id", "plot_id", "tree_id"),
@@ -510,43 +561,95 @@ df_flagMultiTaxon <- flagMultiTaxon(
 datatable(df_flagMultiTaxon)
 ```
 
-# Time-series inconsistencies
-
-__This part of the notebook should only be used if you have access to multi-census data.__
-
-Even if you are only contributing one tree inventory census to GEO-TREES you can still use data from multiple censuses to identify potential errors in the GEO-TREES census.
-
 ```{r}
-# TODO:
-# df_correctDiamSeries <- correctDiamSeries(
-#   x = s,
-#   ind_id = c("site_id", "plot_id", "tree_id", "stem_id"),
-#   census_date = "census_date",
-#   diam = "diam_cm",
-#   pom = "pom_m",
-#   threshold_pos = 5, 
-#   threshold_neg = -2,
-#   correct = c("pom_change", "punctual", "shift"),
-#   correct_type = c("linear", "individual")
-# 
-# datatable(df_correctDiamSeries)
+#| echo: false
+displayHelp(correctTaxo, pkg = "BIOMASS")
 ```
 
+```{r}
+df_correctTaxo <- BIOMASS::correctTaxo(
+	s$taxon_name,
+	interactive = FALSE,
+	preferAccepted = TRUE,
+	preferFuzzy = TRUE,
+	sub_pattern = BIOMASS::subPattern(),
+	useCache = FALSE,
+	useAPI = TRUE,
+	capacity = 60,
+	fill_time_s = 60, 
+	timeout = 10)
+
+datatable(unique(df_correctTaxo[df_correctTaxo$nameModified == TRUE,]))
+```
+
+# Time-series inconsistencies
+
+__This part of the notebook should only be used if you have access to
+multi-census data.__
+
+Even if you are only contributing one tree inventory census to GEO-TREES you
+can still use data from multiple censuses to identify potential errors in the
+GEO-TREES census.
+
+## Diameter timeline
 
 ```{r}
+# Create "alive" mortality status column
 s$alive <- NA
 s$alive[grepl("A", s$code)] <- TRUE
 s$alive[grepl("D", s$code)] <- FALSE
-
 # Note: If a code contains both A and D, the last line 
 # evaluated (D) will take precedence.
+```
+
+```{r}
+#| echo: false
+displayHelp(correctDiameterSeries)
+```
+
+```{r}
+df_correctDiameterSeries <- correctDiameterSeries(
+  x = s,
+  ind_id = c("site_id", "plot_id", "tree_id", "stem_id"),
+  plot_id = c("site_id", "plot_id"),
+  census_date = "census_date",
+  diam = "diam_cm",
+  status = "alive",
+  pom = "pom_m",
+  growth_thresh = c(-2, 4),
+  n_stem_thresh = 3, 
+  digits = 1,
+  comment = "Diameter timelines corrected"
+)
+
+datatable(df_correctDiameterSeries)
+```
+
+## Mortality timeline
+
+```{r}
+#| echo: false
+displayHelp(correctMortalitySeries)
+```
+
+```{r}
 df_correctMortalitySeries <- correctMortalitySeries(
   x = s,
   ind_id = c("site_id", "plot_id", "tree_id", "stem_id"),
   census_id = "census_id",
-  status = "alive")
+  diam = "diam_cm",
+  status = "alive",
+  comment = "Mortality timelines corrected"
+)
 
 datatable(df_correctMortalitySeries)
+```
+
+## Stem condition timeline
+
+```{r}
+#| echo: false
+displayHelp(flagCodeSeries)
 ```
 
 ```{r}
@@ -568,6 +671,13 @@ df_flagCodeSeries <- flagCodeSeries(
 datatable(df_flagCodeSeries)
 ```
 
+## Taxonomy timeline
+
+```{r}
+#| echo: false
+displayHelp(flagTaxonSeries)
+```
+
 ```{r}
 df_flagTaxonSeries <- flagTaxonSeries(
   x = s,
@@ -581,6 +691,13 @@ datatable(df_flagTaxonSeries)
 ```
 
 # Miscellaneous checks
+
+## Too many stems on multi-stemmed tree
+
+```{r}
+#| echo: false
+displayHelp(flagMultiMany)
+```
 
 ```{r}
 df_flagMultiMany <- flagMultiMany(
@@ -617,8 +734,9 @@ flag_list <- list(
   flagMultiLoc = df_flagMultiLoc,
   flagTaxonName = df_flagTaxonName,
   flagMultiTaxon = df_flagMultiTaxon,
-#   correctDiamSeries = df_correctDiamSeries,
-#   correctMortSeries = df_correctMortSeries,
+  correctTaxo = df_correctTaxo,
+  correctDiameterSeries = df_correctDiameterSeries,
+  correctMortalitySeries = df_correctMortalitySeries,
   flagCodeSeries = df_flagCodeSeries,
   flagTaxonSeries = df_flagTaxonSeries,
   flagMultiMany = df_flagMultiMany

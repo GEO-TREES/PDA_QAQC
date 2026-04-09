@@ -18,6 +18,14 @@ param_plot_id <- function() {
   "column name in 'x' providing unique plot IDs"
 }
 
+param_status <- function() {
+  "column name in `x` with logical mortality status"
+}
+
+param_pom <- function() {
+  "column name in `x` with diameter Point of Measurement (POM) values"
+}
+
 param_census_id <- function(optional = FALSE) {
   if (optional) { 
     opt <- "optional, "

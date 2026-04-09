@@ -6,7 +6,7 @@
 #' @param diam optional `r param_diam()`. If provided, the presence of a 
 #' diameter measurement implies the individual is alive if any missing values 
 #' remain after first set of corrections.
-#' @param status column name in `x` with logical mortality status 
+#' @param status `r param_status()`
 #' (TRUE = alive, FALSE = dead, NA = unseen)
 #' @param comment `r param_comment()`
 #' 
@@ -173,7 +173,13 @@ correctMortalitySeries <- function(x, ind_id, census_id, diam, status,
     }
 
     # Identify case where alive after dead
-    max_alive <- max(which(y[[status]] == TRUE))
+    all_alive <- which(y[[status]] == TRUE)
+    if (length(all_alive) > 0) { 
+      max_alive <- max(all_alive)
+    } else {
+      max_alive <- NA_real_
+    }
+
     dead_indices <- which(y[[status]] == FALSE)
 
     if (length(dead_indices) > 0) {
@@ -213,7 +219,12 @@ correctMortalitySeries <- function(x, ind_id, census_id, diam, status,
         }
 
         # Convert consecutive alive without diameter before first alive with diameter to dead
-        first_alive_wdiam <- min(intersect(alives, diams))
+        first_alive_wdiam <- intersect(alives, diams)
+        if (length(first_alive_wdiam) > 0) {
+          first_alive_wdiam <- min(first_alive_wdiam)
+        } else { 
+          first_alive_wdiam <- integer(0)
+        }
         alive_no_diam <- setdiff(alives[alives < first_alive_wdiam], diams)
         if (length(alive_no_diam) > 0) {
           y[alive_no_diam, status] <- 0
@@ -252,7 +263,7 @@ correctMortalitySeries <- function(x, ind_id, census_id, diam, status,
 
   # Generate message
   if (nrow(out) > 0) {
-    message("Diameter timelines corrected")
+    message("Mortality timelines corrected")
   }
 
   # Return
